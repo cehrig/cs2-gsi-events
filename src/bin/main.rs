@@ -38,7 +38,7 @@ struct Args {
     #[arg(short, long)]
     debug: bool,
 
-    #[arg(short, long)]
+    #[arg(long)]
     disable: Vec<Disable>,
 }
 
