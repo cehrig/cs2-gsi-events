@@ -74,6 +74,14 @@ Options:
 For example, if you want to disable the ammo low indicator, run the program with
 `--disable ammo-low`
 
+## Soundpacks
+
+A default set of sound files is part of the published releases. The application looks for audio files in the `sounds/`
+directory relative to where you start it from. You can override that path with the `--sound-path` option.
+
+Also - for the round and bomb announcements - you can add your own wav files. E.g. if you want to have an announcement
+60 seconds before the round ends, add a file `60.wav` in the sounds folder.
+
 ## Accuracy
 
 CS GSI sends bomb planted
