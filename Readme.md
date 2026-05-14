@@ -73,3 +73,11 @@ Options:
 
 For example, if you want to disable the ammo low indicator, run the program with
 `--disable ammo-low`
+
+## Accuracy
+
+CS GSI sends bomb planted
+events [randomly delayed](https://www.reddit.com/r/GlobalOffensive/comments/3xah5n/counterstrike_global_offensive_update_for_121715/).
+It appears as if this delay is somewhere between 0 and 2 seconds, so the countdown until detonation isn't a 100%
+accurate.
+If you are playing CT, maybe hurry up when you hear the 10 second announcement :-)
