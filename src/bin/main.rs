@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use cs_gsi::error::Error;
 use cs_gsi::models::GameState;
 use cs_gsi::state::Event;
@@ -37,6 +37,16 @@ struct Args {
 
     #[arg(short, long)]
     debug: bool,
+
+    #[arg(short, long)]
+    disable: Vec<Disable>,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum Disable {
+    RoundTimer,
+    BombTimer,
+    AmmoLow,
 }
 
 // Enable tracing
@@ -64,7 +74,7 @@ async fn main() {
     let futures = vec![
         tokio::task::spawn(server(args.ip, args.port, tx)),
         tokio::task::spawn(handler(rx, txe)),
-        tokio::task::spawn(events(args.sound_path.clone(), rxe)),
+        tokio::task::spawn(events(args.disable, args.sound_path.clone(), rxe)),
     ];
 
     let _ = select_all(futures).await;
@@ -158,9 +168,24 @@ async fn handler(mut rx: Receiver<GameState>, tx: Sender<Event>) -> Result<(), E
 }
 
 // Handles events. There's not much happening here yet, mainly announcing remaining round & bomb times
-async fn events(path: String, mut rx: Receiver<Event>) -> Result<(), Error> {
+async fn events(
+    disabled: Vec<Disable>,
+    path: String,
+    mut rx: Receiver<Event>,
+) -> Result<(), Error> {
     let mut task: Option<JoinHandle<()>> = None;
     while let Some(event) = rx.recv().await {
+        // Check if event is disabled
+        if disabled
+            .iter()
+            .map(|e| Event::from(*e))
+            .find(|e| std::mem::discriminant(&event) == std::mem::discriminant(e))
+            .is_some()
+        {
+            info!("Event received but disabled: {:?}", event);
+            continue;
+        }
+
         match event {
             Event::RoundOver => {
                 info!("Round over");
@@ -180,6 +205,14 @@ async fn events(path: String, mut rx: Receiver<Event>) -> Result<(), Error> {
                 info!("Round started");
                 task.replace(tokio::task::spawn(countdown_task(path.clone(), limit)));
             }
+            Event::AmmoLow => {
+                info!("Ammo low");
+
+                if let Ok(file) = File::open(format!("{}/ammo_low.wav", path)) {
+                    play_sound(file).await;
+                }
+            }
+            _ => {}
         }
     }
 
@@ -204,11 +237,23 @@ async fn countdown_task(path: String, seconds: u8) {
 // Plays a sound file. Only tested with wav files
 async fn play_sound(file: File) {
     tokio::task::spawn(async {
-        let sink_handle =
+        let mut sink_handle =
             rodio::DeviceSinkBuilder::open_default_sink().expect("open default audio stream");
+        sink_handle.log_on_drop(false);
+
         let file = BufReader::new(file);
         let player = rodio::play(&sink_handle.mixer(), file).unwrap();
 
         player.sleep_until_end();
     });
+}
+
+impl From<Disable> for Event {
+    fn from(value: Disable) -> Self {
+        match value {
+            Disable::RoundTimer => Event::RoundStarted(0),
+            Disable::BombTimer => Event::BombPlanted,
+            Disable::AmmoLow => Event::AmmoLow,
+        }
+    }
 }

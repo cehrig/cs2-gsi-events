@@ -1,4 +1,5 @@
 pub enum Error {
+    UnknownEvent,
     Generic(Box<dyn std::error::Error + Send + Sync>),
 }
 

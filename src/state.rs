@@ -67,11 +67,13 @@ pub enum Maybe<T> {
     Set(T),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Event {
     RoundStarted(u8),
     RoundOver,
     BombPlanted,
+    AmmoLow,
+    Unknown,
 }
 
 pub trait FromState: Sized {
@@ -102,6 +104,7 @@ impl States {
             let e = match state {
                 State::BombStatus(i) => i.compare(old.get::<BombStatus>(), &self),
                 State::RoundPhase(i) => i.compare(old.get::<Phase>(), &self),
+                State::Ammo(i) => i.compare(old.get::<Ammo>(), &self),
                 // no events implemented for the other states
                 _ => continue,
             };

@@ -1,6 +1,7 @@
+use crate::state::Event::AmmoLow;
 use crate::state::{
-    FromState, Maybe, State, StateAssign, StateCollector, StateCollectorDyn, StateGetter,
-    StateSetter,
+    Event, FromState, Maybe, State, StateAssign, StateCollector, StateCollectorDyn, StateEvents,
+    StateGetter, StateSetter, States,
 };
 use serde::{Deserialize, Deserializer};
 use std::collections::BTreeMap;
@@ -211,6 +212,24 @@ impl FromState for Ammo {
             State::Ammo(a) => Some(a),
             _ => None,
         }
+    }
+}
+
+impl StateEvents for Maybe<Ammo> {
+    fn compare(&self, previous: &Self, _: &States) -> Vec<Event> {
+        if let Maybe::Set(current) = self
+            && let Maybe::Set(previous) = previous
+        {
+            if current != previous
+                && (current.ammo_clip as f64 <= current.ammo_clip_max as f64 * 0.15
+                    || current.ammo_clip == 3)
+                && current.ammo_clip != 0
+            {
+                return [AmmoLow].into();
+            }
+        }
+
+        [].into()
     }
 }
 

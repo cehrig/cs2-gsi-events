@@ -101,6 +101,7 @@ impl MapMode {
         match self {
             MapMode::Competitive => 115,
             MapMode::Wingman => 90,
+            MapMode::Casual => 135,
             _ => 0,
         }
     }
