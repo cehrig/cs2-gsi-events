@@ -42,10 +42,11 @@ to end.
 
 This should also run on Linux, but I haven't tested.
 
-### Option 2: Bravely run main.exe directly
+### Option 2: Download Release
 
-I've added a pre-compiled `main.exe` to the repository (runs on my Win11). Simply open a terminal, navigate to the
-repository's root folder, then execute `.\main.exe` ...
+You can find pre-compiled binaries in the Release section. Simply download the archive for your OS. The archives contain
+the binary and a `sound` folder containing audio files. When running the program, make sure to run it from archive's
+root.
 
 ```bash
 > .\main.exe
