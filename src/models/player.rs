@@ -221,7 +221,7 @@ impl StateEvents for Maybe<Ammo> {
             && let Maybe::Set(previous) = previous
         {
             if current != previous
-                && (current.ammo_clip as f64 <= current.ammo_clip_max as f64 * 0.15
+                && (current.ammo_clip as f64 <= current.ammo_clip_max as f64 * 0.20
                     || current.ammo_clip == 3)
                 && current.ammo_clip != 0
             {
