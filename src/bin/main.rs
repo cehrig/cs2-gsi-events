@@ -254,7 +254,7 @@ fn window_events(
                 Event::Ammo(ammo) => {
                     let text = match ammo.ammo_clip_max {
                         0 => String::new(),
-                        n => format!("{}", n),
+                        _ => format!("{}", ammo.ammo_clip),
                     };
 
                     tx.send(text).await?;
