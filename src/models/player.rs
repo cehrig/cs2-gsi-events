@@ -217,6 +217,12 @@ impl FromState for Ammo {
 
 impl StateEvents for Maybe<Ammo> {
     fn compare(&self, previous: &Self, _: &States) -> Vec<Event> {
+        let mut events = vec![];
+
+        if let Maybe::Set(current) = self {
+            events.push(Event::Ammo(*current));
+        };
+
         if let Maybe::Set(current) = self
             && let Maybe::Set(previous) = previous
         {
@@ -225,11 +231,11 @@ impl StateEvents for Maybe<Ammo> {
                     || current.ammo_clip == 3)
                 && current.ammo_clip != 0
             {
-                return [AmmoLow].into();
+                events.push(AmmoLow);
             }
         }
 
-        [].into()
+        events
     }
 }
 

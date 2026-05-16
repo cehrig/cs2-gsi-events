@@ -1,5 +1,6 @@
 use clap::{Parser, ValueEnum};
 use cs_gsi::error::Error;
+use cs_gsi::models::player::Ammo;
 use cs_gsi::models::GameState;
 use cs_gsi::state::Event;
 use futures::future::select_all;
@@ -40,6 +41,9 @@ struct Args {
 
     #[arg(long)]
     disable: Vec<Disable>,
+
+    #[arg(long)]
+    no_visuals: bool,
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -47,6 +51,7 @@ enum Disable {
     RoundTimer,
     BombTimer,
     AmmoLow,
+    AmmoIndicator,
 }
 
 // Enable tracing
@@ -70,14 +75,26 @@ async fn main() {
     tracing_setup(args.debug);
 
     let (tx, rx) = mpsc::channel(1024);
-    let (txe, rxe) = mpsc::channel(1024);
-    let futures = vec![
-        tokio::task::spawn(server(args.ip, args.port, tx)),
-        tokio::task::spawn(handler(rx, txe)),
-        tokio::task::spawn(events(args.disable, args.sound_path.clone(), rxe)),
-    ];
 
-    let _ = select_all(futures).await;
+    // Audio Events
+    let (atx, arx) = mpsc::channel(1024);
+
+    // Senders
+    let mut senders = vec![atx];
+
+    // Visual Events
+    let mut tasks = vec![];
+
+    #[cfg(windows)]
+    tasks.extend(window_events(args.no_visuals, &mut senders).expect("window events"));
+
+    tasks.extend(vec![
+        tokio::task::spawn(server(args.ip, args.port, tx)),
+        tokio::task::spawn(handler(args.disable, rx, senders)),
+        tokio::task::spawn(events(args.sound_path.clone(), arx)),
+    ]);
+
+    let _ = select_all(tasks).await;
 }
 
 // Starting a webserver that's receiving CS Gamestate requests
@@ -142,7 +159,11 @@ async fn server(ip: IpAddr, port: u16, tx: Sender<GameState>) -> Result<(), Erro
 
 // Handles Gamestate requests by comparing new state with old states.
 // Checks for events and sends them to the event handler
-async fn handler(mut rx: Receiver<GameState>, tx: Sender<Event>) -> Result<(), Error> {
+async fn handler(
+    disabled: Vec<Disable>,
+    mut rx: Receiver<GameState>,
+    tx: Vec<Sender<Event>>,
+) -> Result<(), Error> {
     let mut state: Option<GameState> = None;
 
     while let Some(model) = rx.recv().await {
@@ -159,8 +180,14 @@ async fn handler(mut rx: Receiver<GameState>, tx: Sender<Event>) -> Result<(), E
 
         debug!("{:#?}", new_states);
 
-        for events in new_states.events(&old_states) {
-            let _ = tx.send(events).await;
+        for event in new_states.events(&old_states).into_iter().filter(|e| {
+            !disabled
+                .iter()
+                .any(|d| std::mem::discriminant(&Event::from(*d)) == std::mem::discriminant(e))
+        }) {
+            for t in &tx {
+                t.send(event.clone()).await?;
+            }
         }
     }
 
@@ -168,24 +195,10 @@ async fn handler(mut rx: Receiver<GameState>, tx: Sender<Event>) -> Result<(), E
 }
 
 // Handles events. There's not much happening here yet, mainly announcing remaining round & bomb times
-async fn events(
-    disabled: Vec<Disable>,
-    path: String,
-    mut rx: Receiver<Event>,
-) -> Result<(), Error> {
+async fn events(path: String, mut rx: Receiver<Event>) -> Result<(), Error> {
     let mut task: Option<JoinHandle<()>> = None;
-    while let Some(event) = rx.recv().await {
-        // Check if event is disabled
-        if disabled
-            .iter()
-            .map(|e| Event::from(*e))
-            .find(|e| std::mem::discriminant(&event) == std::mem::discriminant(e))
-            .is_some()
-        {
-            info!("Event received but disabled: {:?}", event);
-            continue;
-        }
 
+    while let Some(event) = rx.recv().await {
         match event {
             Event::RoundOver => {
                 info!("Round over");
@@ -206,8 +219,6 @@ async fn events(
                 task.replace(tokio::task::spawn(countdown_task(path.clone(), limit)));
             }
             Event::AmmoLow => {
-                info!("Ammo low");
-
                 if let Ok(file) = File::open(format!("{}/ammo_low.wav", path)) {
                     play_sound(file).await;
                 }
@@ -217,6 +228,52 @@ async fn events(
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn window_events(
+    no_visuals: bool,
+    senders: &mut Vec<Sender<Event>>,
+) -> Result<Vec<JoinHandle<Result<(), Error>>>, Error> {
+    use cs_gsi::windows::window::setup;
+
+    if no_visuals {
+        return Ok(vec![]);
+    }
+
+    // Display Events
+    let (dtx, mut drx) = mpsc::channel(1024);
+
+    // Display Texts
+    let (tx, rx) = mpsc::channel(1024);
+    senders.push(dtx);
+
+    let event_task = tokio::task::spawn(async move {
+        while let Some(event) = drx.recv().await {
+            match event {
+                Event::Ammo(ammo) => {
+                    let text = match ammo.ammo_clip_max {
+                        0 => String::new(),
+                        n => format!("{}", n),
+                    };
+
+                    tx.send(text).await?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    });
+
+    let window_task = tokio::task::spawn_blocking(move || {
+        let window = setup()?;
+        window.events(rx)?;
+
+        Ok(())
+    });
+
+    Ok(vec![event_task, window_task])
 }
 
 // Runs a countdown, triggering sound output if a corresponding file exists
@@ -254,6 +311,7 @@ impl From<Disable> for Event {
             Disable::RoundTimer => Event::RoundStarted(0),
             Disable::BombTimer => Event::BombPlanted,
             Disable::AmmoLow => Event::AmmoLow,
+            Disable::AmmoIndicator => Event::Ammo(Ammo::default()),
         }
     }
 }

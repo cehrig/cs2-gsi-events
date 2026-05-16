@@ -73,6 +73,7 @@ pub enum Event {
     RoundOver,
     BombPlanted,
     AmmoLow,
+    Ammo(Ammo),
     Unknown,
 }
 

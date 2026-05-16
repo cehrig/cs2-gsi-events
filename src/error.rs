@@ -1,5 +1,13 @@
+#[derive(Debug)]
 pub enum Error {
     UnknownEvent,
+    MemoryAllocationFailed,
+    LibraryLoaderNotFound,
+    WindowsClassCreate,
+    GetSystemMetrics,
+    D3DeviceMissing,
+    D3ContextMissing,
+    D3RenderTargetMissing,
     Generic(Box<dyn std::error::Error + Send + Sync>),
 }
 
