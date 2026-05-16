@@ -74,6 +74,8 @@ pub enum Event {
     BombPlanted,
     AmmoLow,
     Ammo(Ammo),
+    PlayingStopped,
+    PlayingStarted,
     Unknown,
 }
 
@@ -106,6 +108,7 @@ impl States {
                 State::BombStatus(i) => i.compare(old.get::<BombStatus>(), &self),
                 State::RoundPhase(i) => i.compare(old.get::<Phase>(), &self),
                 State::Ammo(i) => i.compare(old.get::<Ammo>(), &self),
+                State::PlayerActivity(i) => i.compare(old.get::<PlayerActivity>(), &self),
                 // no events implemented for the other states
                 _ => continue,
             };

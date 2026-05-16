@@ -1,4 +1,4 @@
-use crate::state::Event::AmmoLow;
+use crate::state::Event::{AmmoLow, PlayingStarted, PlayingStopped};
 use crate::state::{
     Event, FromState, Maybe, State, StateAssign, StateCollector, StateCollectorDyn, StateEvents,
     StateGetter, StateSetter, States,
@@ -218,6 +218,20 @@ impl FromState for Ammo {
             State::Ammo(a) => Some(a),
             _ => None,
         }
+    }
+}
+
+impl StateEvents for Maybe<PlayerActivity> {
+    fn compare(&self, _: &Self, _: &States) -> Vec<Event> {
+        if !matches!(self, Maybe::Set(PlayerActivity::Playing)) {
+            return vec![PlayingStopped];
+        }
+
+        if matches!(self, Maybe::Set(PlayerActivity::Playing)) {
+            return vec![PlayingStarted];
+        }
+
+        [].into()
     }
 }
 

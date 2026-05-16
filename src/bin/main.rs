@@ -249,9 +249,10 @@ fn window_events(
     senders.push(dtx);
 
     let event_task = tokio::task::spawn(async move {
+        let mut is_playing = false;
         while let Some(event) = drx.recv().await {
             match event {
-                Event::Ammo(ammo) => {
+                Event::Ammo(ammo) if is_playing => {
                     let text = match ammo.ammo_clip_max {
                         0 => String::new(),
                         _ => format!("{}", ammo.ammo_clip),
@@ -259,6 +260,14 @@ fn window_events(
 
                     tx.send(text).await?;
                 }
+                Event::PlayingStopped => {
+                    is_playing = false;
+                    tx.send(String::new()).await?;
+                }
+                Event::PlayingStarted => {
+                    is_playing = true;
+                }
+
                 _ => {}
             }
         }
