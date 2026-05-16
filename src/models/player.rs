@@ -34,6 +34,11 @@ pub enum WeaponType {
         #[serde(flatten)]
         ammo: Ammo,
     },
+    #[serde(alias = "Machine Gun")]
+    MachineGun {
+        #[serde(flatten)]
+        ammo: Ammo,
+    },
     #[serde(alias = "Submachine Gun")]
     SubmachineGun {
         #[serde(flatten)]
@@ -119,6 +124,7 @@ impl Weapon {
         match self.kind {
             WeaponType::Knife => Ammo::default(),
             WeaponType::Pistol { ref ammo } => *ammo,
+            WeaponType::MachineGun { ref ammo } => *ammo,
             WeaponType::SubmachineGun { ref ammo } => *ammo,
             WeaponType::Rifle { ref ammo } => *ammo,
             WeaponType::SniperRifle { ref ammo } => *ammo,
