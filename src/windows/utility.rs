@@ -1,19 +1,14 @@
 use crate::error::Error;
-use std::ffi::{CString, c_void};
+use std::ffi::{c_void, CString};
 use std::os::windows::ffi::OsStrExt;
 use std::str::FromStr;
+use windows::core::PCSTR;
 use windows::Win32::Foundation::{HANDLE, HMODULE, MAX_PATH};
 use windows::Win32::System::Diagnostics::Debug::WriteProcessMemory;
-use windows::Win32::System::LibraryLoader::{GetModuleHandleA, GetProcAddress};
-use windows::Win32::System::Memory::{MEM_COMMIT, MEM_RESERVE, PAGE_READWRITE, VirtualAllocEx};
-use windows::Win32::System::ProcessStatus::{
-    EnumProcessModules, EnumProcesses, GetModuleBaseNameA,
-};
-use windows::Win32::System::Threading::{
-    CreateRemoteThread, LPTHREAD_START_ROUTINE, OpenProcess, PROCESS_ALL_ACCESS,
-    PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-};
-use windows::core::PCSTR;
+use windows::Win32::System::LibraryLoader::*;
+use windows::Win32::System::Memory::*;
+use windows::Win32::System::ProcessStatus::*;
+use windows::Win32::System::Threading::*;
 
 pub fn to_wstring(s: &str) -> Vec<u16> {
     std::ffi::OsStr::new(s)
