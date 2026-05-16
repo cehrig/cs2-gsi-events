@@ -74,6 +74,18 @@ Options:
 For example, if you want to disable the ammo low indicator, run the program with
 `--disable ammo-low`
 
+## Experimental Visual Overlay
+
+There's an experimental feature which displays the amount of ammo in the current clip. This feature
+
+- uses it's own directx rendering pipeline (therefore only works on Windows)
+- creates a fullscreen click-thru window (game must not be run in exclusive fullscreen mode but borderless)
+- doesn't inject into the game's process, so this should be safe (famous last words).
+
+You can opt-out of the overlay with `--no-visuals`.
+
+![image](img/overlay.png)
+
 ## Soundpacks
 
 A default set of sound files is part of the published releases. The application looks for audio files in the `sounds/`
