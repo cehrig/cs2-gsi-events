@@ -13,6 +13,7 @@ use std::convert::Infallible;
 use std::fs::File;
 use std::io::BufReader;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::OnceLock;
 use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
@@ -44,7 +45,12 @@ struct Args {
 
     #[arg(long)]
     no_visuals: bool,
+
+    #[arg(long, value_parser = volume_parser, default_value = "0.8", help = "between 0.0 and 2.0")]
+    volume: f32,
 }
+
+static VOLUME: OnceLock<f32> = OnceLock::new();
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum Disable {
@@ -52,6 +58,16 @@ enum Disable {
     BombTimer,
     AmmoLow,
     AmmoIndicator,
+}
+
+fn volume_parser(value: &str) -> Result<f32, Error> {
+    let volume = value.parse::<f32>()?;
+
+    if volume < 0.0 || volume > 2.0 {
+        return Err(Error::VolumeNotInRange);
+    }
+
+    Ok(volume)
 }
 
 // Enable tracing
@@ -74,6 +90,10 @@ async fn main() {
     let args = Args::parse();
     tracing_setup(args.debug);
 
+    // Setup global volume
+    VOLUME.get_or_init(|| args.volume);
+
+    // Gamestate Events
     let (tx, rx) = mpsc::channel(1024);
 
     // Audio Events
@@ -188,7 +208,9 @@ async fn handler(
                 .any(|d| std::mem::discriminant(&Event::from(*d)) == std::mem::discriminant(e))
         }) {
             for t in &tx {
-                t.send(event.clone()).await?;
+                t.send(event.clone())
+                    .await
+                    .map_err(|e| Error::Generic(e.into()))?;
             }
         }
     }
@@ -251,7 +273,7 @@ fn window_events(
     senders.push(dtx);
 
     // Ammo Box Element
-    let ammo_box = elements::text::TextElement::new(
+    let ammo_box = TextElement::new(
         RGBA::new(1.0, 1.0, 1.0, 0.9),
         Position::new(0.0, 0.0, -100.0, -10.0, PositionMode::FromEnd),
         TextFormat::new("Consolas", 48.0),
@@ -260,7 +282,8 @@ fn window_events(
 
     let event_task = tokio::task::spawn(async move {
         tx.send(WindowEvent::add_2d_element("ammo_box", ammo_box.clone()))
-            .await?;
+            .await
+            .map_err(|e| Error::Generic(e.into()))?;
 
         let mut is_playing = false;
 
@@ -285,7 +308,9 @@ fn window_events(
                 _ => {}
             }
 
-            tx.send(WindowEvent::Draw).await?;
+            tx.send(WindowEvent::Draw)
+                .await
+                .map_err(|e| Error::Generic(e.into()))?;
         }
 
         Ok(())
@@ -326,6 +351,9 @@ async fn play_sound(file: File) {
 
         let file = BufReader::new(file);
         let player = rodio::play(&sink_handle.mixer(), file).unwrap();
+
+        // Volume is always set
+        player.set_volume(*VOLUME.get().unwrap());
 
         player.sleep_until_end();
     });
