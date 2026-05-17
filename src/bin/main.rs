@@ -94,7 +94,9 @@ async fn main() {
         tokio::task::spawn(events(args.sound_path.clone(), arx)),
     ]);
 
-    let _ = select_all(tasks).await;
+    let result = select_all(tasks).await;
+
+    error!("Process stopped: {:?}", result.0);
 }
 
 // Starting a webserver that's receiving CS Gamestate requests
@@ -235,7 +237,7 @@ fn window_events(
     no_visuals: bool,
     senders: &mut Vec<Sender<Event>>,
 ) -> Result<Vec<JoinHandle<Result<(), Error>>>, Error> {
-    use cs_gsi::windows::window::setup;
+    use cs_gsi::windows::*;
 
     if no_visuals {
         return Ok(vec![]);
@@ -248,8 +250,20 @@ fn window_events(
     let (tx, rx) = mpsc::channel(1024);
     senders.push(dtx);
 
+    // Ammo Box Element
+    let ammo_box = elements::text::TextElement::new(
+        RGBA::new(1.0, 1.0, 1.0, 0.9),
+        Position::new(0.0, 0.0, -100.0, -10.0, PositionMode::FromEnd),
+        TextFormat::new("Consolas", 48.0),
+        None,
+    );
+
     let event_task = tokio::task::spawn(async move {
+        tx.send(WindowEvent::add_2d_element("ammo_box", ammo_box.clone()))
+            .await?;
+
         let mut is_playing = false;
+
         while let Some(event) = drx.recv().await {
             match event {
                 Event::Ammo(ammo) if is_playing => {
@@ -258,11 +272,11 @@ fn window_events(
                         _ => format!("{}", ammo.ammo_clip),
                     };
 
-                    tx.send(text).await?;
+                    ammo_box.set_text(text)?;
                 }
                 Event::PlayingStopped => {
                     is_playing = false;
-                    tx.send(String::new()).await?;
+                    ammo_box.clear_text()?;
                 }
                 Event::PlayingStarted => {
                     is_playing = true;
@@ -270,13 +284,16 @@ fn window_events(
 
                 _ => {}
             }
+
+            tx.send(WindowEvent::Draw).await?;
         }
 
         Ok(())
     });
 
     let window_task = tokio::task::spawn_blocking(move || {
-        let window = setup()?;
+        let mut window = setup()?;
+
         window.events(rx)?;
 
         Ok(())

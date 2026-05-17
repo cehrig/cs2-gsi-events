@@ -10,6 +10,7 @@ At the moment those "things" are
   detonation)
 - The same but for the remaining time per round
 - Audio indicator when running low on ammo
+- Experimental: Ammo indicator via game overlay
 
 You will run this program in a terminal.
 
@@ -65,10 +66,11 @@ Options:
   -p, --port <PORT>              [default: 30001]
   -i, --ip <IP>                  [default: 127.0.0.1]
   -s, --sound-path <SOUND_PATH>  [default: sounds]
-  -d, --debug
-  -d, --disable <DISABLE>        [possible values: round-timer, bomb-timer, ammo-low]
+  -d, --debug                    
+      --disable <DISABLE>        [possible values: round-timer, bomb-timer, ammo-low, ammo-indicator]
+      --no-visuals               
   -h, --help                     Print help
-  -V, --version                  Print version
+  -V, --version                  Print versio
 ```
 
 For example, if you want to disable the ammo low indicator, run the program with

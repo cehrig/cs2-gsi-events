@@ -8,6 +8,7 @@ pub enum Error {
     D3DeviceMissing,
     D3ContextMissing,
     D3RenderTargetMissing,
+    LockFailed,
     Generic(Box<dyn std::error::Error + Send + Sync>),
 }
 

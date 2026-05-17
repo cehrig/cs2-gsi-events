@@ -17,6 +17,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 rodio = { version = "0.22.2", features = ["playback"] }
 
 [target.'cfg(windows)'.dependencies]
+windows-core = "0.62.2"
 windows = { version = "0.62.2", features = [
     "Win32_System_Memory",
     "Win32_System_ProcessStatus",

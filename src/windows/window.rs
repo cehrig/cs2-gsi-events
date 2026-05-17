@@ -1,9 +1,10 @@
 use crate::error::Error;
+use crate::windows::elements::{Draw2D, ElementIdentifier};
+use crate::windows::events::WindowEvent;
 use crate::windows::utility::to_wstring;
-use std::thread::sleep;
-use std::time::Duration;
+use std::collections::HashMap;
 use tokio::sync::mpsc::Receiver;
-use windows::core::{Interface, HSTRING, PCWSTR};
+use windows::core::{Interface, PCWSTR};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct2D::Common::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -22,27 +23,76 @@ extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM)
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
-pub struct Window {
-    width: i32,
-    height: i32,
+pub struct Renderer {
     device: ID3D11Device,
     context: ID3D11DeviceContext,
     swap_chain: IDXGISwapChain1,
     comp_dev: IDCompositionDevice,
+    rtv: ID3D11RenderTargetView,
+    pub(crate) d2d: ID2D1DeviceContext5,
+    pub(crate) write_factory: IDWriteFactory,
+}
+
+struct Composition {
     target: IDCompositionTarget,
     visual: IDCompositionVisual,
-    rtv: ID3D11RenderTargetView,
-    d2d: ID2D1DeviceContext5,
-    text_format: IDWriteTextFormat,
+}
+
+pub struct Window {
+    width: i32,
+    height: i32,
+    pub(crate) renderer: Renderer,
+    composition: Composition,
+    elements_2d: HashMap<ElementIdentifier, Box<dyn Draw2D>>,
+}
+
+impl Renderer {
+    fn clear_frame(&self) {
+        unsafe {
+            self.context
+                .ClearRenderTargetView(&self.rtv, &[0.0, 0.0, 0.0, 0.00])
+        };
+    }
+
+    fn start_frame(&self, window: &Window) -> Result<(), Error> {
+        if window.elements_2d.is_empty() {
+            return Ok(());
+        }
+
+        unsafe { self.d2d.BeginDraw() };
+
+        for (_, element) in window.elements_2d.iter() {
+            element.draw(window)?;
+        }
+
+        Ok(())
+    }
+
+    fn end_frame(&self, window: &Window) -> Result<(), Error> {
+        if !window.elements_2d.is_empty() {
+            unsafe { self.d2d.EndDraw(None, None)? }
+        }
+
+        unsafe { self.swap_chain.Present(1, DXGI_PRESENT(0)).ok()? }
+
+        Ok(())
+    }
 }
 
 impl Window {
-    pub fn events(&self, mut rx: Receiver<String>) -> Result<(), Error> {
+    pub fn width(&self) -> i32 {
+        self.width
+    }
+
+    pub fn height(&self) -> i32 {
+        self.height
+    }
+
+    pub fn events(&mut self, mut rx: Receiver<WindowEvent>) -> Result<(), Error> {
         unsafe {
             // Render Loop
             let mut msg = MSG::default();
 
-            let mut m = 0.0;
             loop {
                 while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).into() {
                     if msg.message == WM_QUIT {
@@ -52,54 +102,21 @@ impl Window {
                     let _ = DispatchMessageW(&msg);
                 }
 
-                let Some(text) = rx.blocking_recv() else {
+                let Some(event) = rx.blocking_recv() else {
                     return Ok(());
                 };
 
-                m = m + 0.001;
-                if m >= 1.0 {
-                    m = 0.0;
+                match event {
+                    WindowEvent::Add2DElement((id, element)) => {
+                        self.elements_2d.insert(id, element);
+                        continue;
+                    }
+                    WindowEvent::Draw => {}
                 }
 
-                let clear_color = [0.0, 0.0, 0.0, 0.00];
-
-                self.context.ClearRenderTargetView(&self.rtv, &clear_color);
-
-                self.d2d.BeginDraw();
-                let brush = self.d2d.CreateSolidColorBrush(
-                    &D2D1_COLOR_F {
-                        r: 1.0,
-                        g: 1.0,
-                        b: 1.0,
-                        a: 0.9,
-                    },
-                    None,
-                )?;
-
-                let rect = D2D_RECT_F {
-                    left: 0.0,
-                    top: 0.0,
-                    right: self.width as f32 - 100.0,
-                    bottom: self.height as f32 - 100.0,
-                };
-
-                let text = to_wstring(format!("{}", text).as_str());
-
-                self.d2d.DrawText(
-                    &text,
-                    &self.text_format,
-                    &rect,
-                    &brush,
-                    None,
-                    0,
-                    D2D1_DRAW_TEXT_OPTIONS_NONE,
-                    DWRITE_MEASURING_MODE_NATURAL,
-                );
-
-                self.d2d.EndDraw(None, None)?;
-
-                self.swap_chain.Present(0, DXGI_PRESENT(0)).ok()?;
-                sleep(Duration::from_millis(20));
+                self.renderer.clear_frame();
+                self.renderer.start_frame(self)?;
+                self.renderer.end_frame(self)?;
             }
         }
     }
@@ -114,20 +131,26 @@ pub fn setup() -> Result<Window, Error> {
     let (device, context) = create_device()?;
     let swap_chain = create_swap_chain(&device, width, height)?;
     let (comp_dev, target, visual, rtv) = create_visuals(hwnd, &device, &swap_chain)?;
-    let (d2d, _, text_format) = create_d2d(&device, &swap_chain)?;
+    let (d2d, write_factory) = create_d2d(&device, &swap_chain)?;
 
-    let window = Window {
-        width,
-        height,
+    let renderer = Renderer {
         device,
         context,
         swap_chain,
         comp_dev,
-        target,
-        visual,
         rtv,
         d2d,
-        text_format,
+        write_factory,
+    };
+
+    let composition = Composition { target, visual };
+
+    let window = Window {
+        width,
+        height,
+        renderer,
+        composition,
+        elements_2d: Default::default(),
     };
 
     Ok(window)
@@ -281,7 +304,7 @@ fn create_visuals(
 fn create_d2d(
     device: &ID3D11Device,
     swap_chain: &IDXGISwapChain1,
-) -> Result<(ID2D1DeviceContext5, ID2D1Bitmap1, IDWriteTextFormat), Error> {
+) -> Result<(ID2D1DeviceContext5, IDWriteFactory), Error> {
     let dxgi_device: IDXGIDevice = device.cast()?;
 
     let d2d_factory: ID2D1Factory1 =
@@ -309,25 +332,9 @@ fn create_d2d(
     };
 
     let bitmap = unsafe { d2d_context.CreateBitmapFromDxgiSurface(&surface, Some(&bitmap_props))? };
-
     unsafe { d2d_context.SetTarget(&bitmap) };
 
     let dwrite: IDWriteFactory = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)? };
 
-    let format: IDWriteTextFormat = unsafe {
-        dwrite.CreateTextFormat(
-            &HSTRING::from("Consolas"),
-            None,
-            DWRITE_FONT_WEIGHT_BOLD,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            48.0,
-            &HSTRING::from("en-us"),
-        )?
-    };
-
-    unsafe { format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)? };
-    unsafe { format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)? };
-
-    Ok((d2d_context, bitmap, format))
+    Ok((d2d_context, dwrite))
 }

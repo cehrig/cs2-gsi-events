@@ -54,6 +54,11 @@ pub enum WeaponType {
         #[serde(flatten)]
         ammo: Ammo,
     },
+    #[serde(alias = "Shotgun")]
+    Shotgun {
+        #[serde(flatten)]
+        ammo: Ammo,
+    },
     #[serde(alias = "Grenade")]
     Grenade,
     #[serde(alias = "C4")]
@@ -128,6 +133,7 @@ impl Weapon {
             WeaponType::SubmachineGun { ref ammo } => *ammo,
             WeaponType::Rifle { ref ammo } => *ammo,
             WeaponType::SniperRifle { ref ammo } => *ammo,
+            WeaponType::Shotgun { ref ammo } => *ammo,
             WeaponType::Grenade => Ammo::default(),
             WeaponType::C4 => Ammo::default(),
             WeaponType::Unknown => Ammo::default(),
