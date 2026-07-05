@@ -99,14 +99,19 @@ async fn main() {
     // Audio Events
     let (atx, arx) = mpsc::channel(1024);
 
-    // Senders
-    let mut senders = vec![atx];
-
     // Visual Events
     let mut tasks = vec![];
 
     #[cfg(windows)]
-    tasks.extend(window_events(args.no_visuals, &mut senders).expect("window events"));
+    let senders = {
+        let (dtx, t) = window_events(args.no_visuals).expect("window events");
+        tasks.extend(t);
+
+        vec![atx, dtx.expect("direct 2d tx channel")]
+    };
+
+    #[cfg(unix)]
+    let senders = vec![atx];
 
     tasks.extend(vec![
         tokio::task::spawn(server(args.ip, args.port, tx)),
@@ -257,12 +262,11 @@ async fn events(path: String, mut rx: Receiver<Event>) -> Result<(), Error> {
 #[cfg(windows)]
 fn window_events(
     no_visuals: bool,
-    senders: &mut Vec<Sender<Event>>,
-) -> Result<Vec<JoinHandle<Result<(), Error>>>, Error> {
+) -> Result<(Option<Sender<Event>>, Vec<JoinHandle<Result<(), Error>>>), Error> {
     use cs_gsi::windows::*;
 
     if no_visuals {
-        return Ok(vec![]);
+        return Ok((None, vec![]));
     }
 
     // Display Events
@@ -270,7 +274,6 @@ fn window_events(
 
     // Display Texts
     let (tx, rx) = mpsc::channel(1024);
-    senders.push(dtx);
 
     // Ammo Box Element
     let ammo_box = TextElement::new(
@@ -324,7 +327,7 @@ fn window_events(
         Ok(())
     });
 
-    Ok(vec![event_task, window_task])
+    Ok((Some(dtx), vec![event_task, window_task]))
 }
 
 // Runs a countdown, triggering sound output if a corresponding file exists

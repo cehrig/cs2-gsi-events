@@ -126,17 +126,15 @@ pub struct Player {
 
 impl Weapon {
     fn ammo(&self) -> Ammo {
-        match self.kind {
-            WeaponType::Knife => Ammo::default(),
-            WeaponType::Pistol { ref ammo } => *ammo,
-            WeaponType::MachineGun { ref ammo } => *ammo,
-            WeaponType::SubmachineGun { ref ammo } => *ammo,
-            WeaponType::Rifle { ref ammo } => *ammo,
-            WeaponType::SniperRifle { ref ammo } => *ammo,
-            WeaponType::Shotgun { ref ammo } => *ammo,
-            WeaponType::Grenade => Ammo::default(),
-            WeaponType::C4 => Ammo::default(),
-            WeaponType::Unknown => Ammo::default(),
+        match &self.kind {
+            WeaponType::Pistol { ammo }
+            | WeaponType::MachineGun { ammo }
+            | WeaponType::SubmachineGun { ammo }
+            | WeaponType::Rifle { ammo }
+            | WeaponType::SniperRifle { ammo }
+            | WeaponType::Shotgun { ammo } => *ammo,
+
+            _ => Ammo::default(),
         }
     }
 
