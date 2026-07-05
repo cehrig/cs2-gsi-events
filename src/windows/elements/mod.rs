@@ -46,7 +46,7 @@ impl RGBA {
 #[derive(Clone)]
 pub enum PositionMode {
     Absolute,
-    FromEnd,
+    FromCenter,
 }
 
 #[derive(Clone)]
@@ -69,12 +69,12 @@ impl Position {
         }
     }
 
-    pub fn left(&self) -> f32 {
-        self.left
+    pub fn left(&self, total_width: i32) -> f32 {
+        self.abs_rel(self.left, total_width)
     }
 
-    pub fn top(&self) -> f32 {
-        self.right
+    pub fn top(&self, total_height: i32) -> f32 {
+        self.abs_rel(self.top, total_height)
     }
 
     pub fn right(&self, total_width: i32) -> f32 {
@@ -88,7 +88,7 @@ impl Position {
     fn abs_rel(&self, val: f32, init: i32) -> f32 {
         match self.mode {
             PositionMode::Absolute => val,
-            PositionMode::FromEnd => init as f32 + val,
+            PositionMode::FromCenter => init as f32 / 2.0 + val,
         }
     }
 }

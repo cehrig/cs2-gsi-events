@@ -58,6 +58,7 @@ enum Disable {
     BombTimer,
     AmmoLow,
     AmmoIndicator,
+    HealthIndicator,
 }
 
 fn volume_parser(value: &str) -> Result<f32, Error> {
@@ -278,8 +279,16 @@ fn window_events(
     // Ammo Box Element
     let ammo_box = TextElement::new(
         RGBA::new(1.0, 1.0, 1.0, 0.9),
-        Position::new(0.0, 0.0, -100.0, -10.0, PositionMode::FromEnd),
+        Position::new(-120.0, -100.0, 100.0, 100.0, PositionMode::FromCenter),
         TextFormat::new("Consolas", 48.0),
+        None,
+    );
+
+    // Health Box Element
+    let health_box = TextElement::new(
+        RGBA::new(1.0, 1.0, 1.0, 0.9),
+        Position::new(-120.0, -50.0, 100.0, 200.0, PositionMode::FromCenter),
+        TextFormat::new("Consolas", 18.0),
         None,
     );
 
@@ -287,6 +296,13 @@ fn window_events(
         tx.send(WindowEvent::add_2d_element("ammo_box", ammo_box.clone()))
             .await
             .map_err(|e| Error::Generic(e.into()))?;
+
+        tx.send(WindowEvent::add_2d_element(
+            "health_box",
+            health_box.clone(),
+        ))
+        .await
+        .map_err(|e| Error::Generic(e.into()))?;
 
         let mut is_playing = false;
 
@@ -300,9 +316,23 @@ fn window_events(
 
                     ammo_box.set_text(text)?;
                 }
+                Event::HealthArmorChanged((h, a)) if is_playing => {
+                    let text = if a == 0 {
+                        h.to_string()
+                    } else {
+                        format!("{h} / {a}")
+                    };
+
+                    health_box.set_text(text)?;
+
+                    if h == 0 {
+                        health_box.clear_text()?;
+                    }
+                }
                 Event::PlayingStopped => {
                     is_playing = false;
                     ammo_box.clear_text()?;
+                    health_box.clear_text()?
                 }
                 Event::PlayingStarted => {
                     is_playing = true;
@@ -369,6 +399,7 @@ impl From<Disable> for Event {
             Disable::BombTimer => Event::BombPlanted,
             Disable::AmmoLow => Event::AmmoLow,
             Disable::AmmoIndicator => Event::Ammo(Ammo::default()),
+            Disable::HealthIndicator => Event::HealthArmorChanged((0, 0)),
         }
     }
 }

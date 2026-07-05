@@ -116,8 +116,8 @@ impl TextFormat {
             )?
         };
 
-        unsafe { format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)? };
-        unsafe { format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)? };
+        unsafe { format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING)? };
+        unsafe { format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR)? };
 
         Ok(format)
     }
@@ -150,8 +150,8 @@ impl Draw2D for Arc<TextElement> {
         };
 
         let rect = D2D_RECT_F {
-            left: state.position.left(),
-            top: state.position.top(),
+            left: state.position.left(window.width()),
+            top: state.position.top(window.height()),
             right: state.position.right(window.width()),
             bottom: state.position.bottom(window.height()),
         };

@@ -92,7 +92,7 @@ pub struct Weapon {
     kind: WeaponType,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct PlayerState {
     health: u8,
     armor: u8,
@@ -161,6 +161,12 @@ impl PlayerActivity {
     }
 }
 
+impl PlayerState {
+    pub fn state(&self) -> PlayerState {
+        *self
+    }
+}
+
 impl StateCollector for Player {
     type Inner = Player;
 
@@ -169,6 +175,7 @@ impl StateCollector for Player {
         vec![
             r.map(|p| &p.activity).unwrap_or(&None),
             r.map(|p| &p.weapons).unwrap_or(&None),
+            r.map(|p| &p.state).unwrap_or(&None),
         ]
     }
 
@@ -184,6 +191,21 @@ impl StateCollector for PlayerActivity {
         &[&(
             State::PlayerActivity as StateSetter<PlayerActivity>,
             PlayerActivity::activity as StateGetter<Self::Inner, PlayerActivity>,
+        )]
+    }
+
+    fn inner(&self) -> &Self::Inner {
+        self
+    }
+}
+
+impl StateCollector for PlayerState {
+    type Inner = PlayerState;
+
+    fn vtable() -> &'static [&'static dyn StateAssign<Inner = Self::Inner>] {
+        &[&(
+            State::PlayerState as StateSetter<PlayerState>,
+            PlayerState::state as StateGetter<Self::Inner, PlayerState>,
         )]
     }
 
@@ -216,6 +238,15 @@ impl FromState for PlayerActivity {
     }
 }
 
+impl FromState for PlayerState {
+    fn from_state(state: &State) -> Option<&Maybe<PlayerState>> {
+        match state {
+            State::PlayerState(a) => Some(a),
+            _ => None,
+        }
+    }
+}
+
 impl FromState for Ammo {
     fn from_state(state: &State) -> Option<&Maybe<Ammo>> {
         match state {
@@ -236,6 +267,18 @@ impl StateEvents for Maybe<PlayerActivity> {
         }
 
         [].into()
+    }
+}
+
+impl StateEvents for Maybe<PlayerState> {
+    fn compare(&self, _: &Self, _: &States) -> Vec<Event> {
+        let mut events = vec![];
+
+        if let Maybe::Set(current) = self {
+            events.push(Event::HealthArmorChanged((current.health, current.armor)))
+        }
+
+        events
     }
 }
 

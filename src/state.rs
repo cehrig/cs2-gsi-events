@@ -1,5 +1,5 @@
 use crate::models::map::{MapMode, Phase};
-use crate::models::player::{Ammo, PlayerActivity};
+use crate::models::player::{Ammo, PlayerActivity, PlayerState};
 use crate::models::round::BombStatus;
 
 pub type StateSetter<T> = fn(Maybe<T>) -> State;
@@ -56,6 +56,7 @@ pub struct States {
 pub enum State {
     RoundPhase(Maybe<Phase>),
     PlayerActivity(Maybe<PlayerActivity>),
+    PlayerState(Maybe<PlayerState>),
     BombStatus(Maybe<BombStatus>),
     Ammo(Maybe<Ammo>),
     MapMode(Maybe<MapMode>),
@@ -76,6 +77,7 @@ pub enum Event {
     Ammo(Ammo),
     PlayingStopped,
     PlayingStarted,
+    HealthArmorChanged((u8, u8)),
     Unknown,
 }
 
@@ -109,6 +111,7 @@ impl States {
                 State::RoundPhase(i) => i.compare(old.get::<Phase>(), &self),
                 State::Ammo(i) => i.compare(old.get::<Ammo>(), &self),
                 State::PlayerActivity(i) => i.compare(old.get::<PlayerActivity>(), &self),
+                State::PlayerState(i) => i.compare(old.get::<PlayerState>(), &self),
                 // no events implemented for the other states
                 _ => continue,
             };
