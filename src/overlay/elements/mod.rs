@@ -1,5 +1,5 @@
 use crate::error::Error;
-use crate::windows::window::Window;
+use crate::overlay::Window;
 
 pub mod text;
 

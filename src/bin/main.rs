@@ -88,8 +88,13 @@ fn tracing_setup(debug: bool) {
 // Runs the program
 #[tokio::main]
 async fn main() {
-    let args = Args::parse();
+    let mut args = Args::parse();
     tracing_setup(args.debug);
+
+    // Linux default
+    if cfg!(target_os = "linux") {
+        args.no_visuals = true;
+    }
 
     // Setup global volume
     VOLUME.get_or_init(|| args.volume);
@@ -263,104 +268,96 @@ fn window_events(
         return Ok((None, vec![]));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use cs_gsi::platform::*;
+    use cs_gsi::overlay::*;
 
-        // Display Events
-        let (dtx, mut drx) = mpsc::channel(1024);
+    // Display Events
+    let (dtx, mut drx) = mpsc::channel(1024);
 
-        // Display Texts
-        let (tx, rx) = mpsc::channel(1024);
+    // Display Texts
+    let (tx, rx) = mpsc::channel(1024);
 
-        // Ammo Box Element
-        let ammo_box = TextElement::new(
-            RGBA::new(1.0, 1.0, 1.0, 0.9),
-            Position::new(-120.0, -100.0, 100.0, 100.0, PositionMode::FromCenter),
-            TextFormat::new("Consolas", 48.0),
-            None,
-        );
+    // Ammo Box Element
+    let ammo_box = TextElement::new(
+        RGBA::new(1.0, 1.0, 1.0, 0.9),
+        Position::new(-120.0, -100.0, 100.0, 100.0, PositionMode::FromCenter),
+        TextFormat::new("Consolas", 48.0),
+        None,
+    );
 
-        // Health Box Element
-        let health_box = TextElement::new(
-            RGBA::new(1.0, 1.0, 1.0, 0.9),
-            Position::new(-120.0, -50.0, 100.0, 200.0, PositionMode::FromCenter),
-            TextFormat::new("Consolas", 18.0),
-            None,
-        );
+    // Health Box Element
+    let health_box = TextElement::new(
+        RGBA::new(1.0, 1.0, 1.0, 0.9),
+        Position::new(-120.0, -50.0, 100.0, 200.0, PositionMode::FromCenter),
+        TextFormat::new("Consolas", 18.0),
+        None,
+    );
 
-        let event_task = tokio::task::spawn(async move {
-            tx.send(WindowEvent::add_2d_element("ammo_box", ammo_box.clone()))
-                .await
-                .map_err(|e| Error::Generic(e.into()))?;
-
-            tx.send(WindowEvent::add_2d_element(
-                "health_box",
-                health_box.clone(),
-            ))
+    let event_task = tokio::task::spawn(async move {
+        tx.send(WindowEvent::add_2d_element("ammo_box", ammo_box.clone()))
             .await
             .map_err(|e| Error::Generic(e.into()))?;
 
-            let mut is_playing = false;
+        tx.send(WindowEvent::add_2d_element(
+            "health_box",
+            health_box.clone(),
+        ))
+        .await
+        .map_err(|e| Error::Generic(e.into()))?;
 
-            while let Some(event) = drx.recv().await {
-                match event {
-                    Event::Ammo(ammo) if is_playing => {
-                        let text = match ammo.ammo_clip_max {
-                            0 => String::new(),
-                            _ => format!("{}", ammo.ammo_clip),
-                        };
+        let mut is_playing = false;
 
-                        ammo_box.set_text(text)?;
+        while let Some(event) = drx.recv().await {
+            match event {
+                Event::Ammo(ammo) if is_playing => {
+                    let text = match ammo.ammo_clip_max {
+                        0 => String::new(),
+                        _ => format!("{}", ammo.ammo_clip),
+                    };
+
+                    ammo_box.set_text(text)?;
+                }
+                Event::HealthArmorChanged((h, a)) if is_playing => {
+                    let text = if a == 0 {
+                        h.to_string()
+                    } else {
+                        format!("{h} / {a}")
+                    };
+
+                    health_box.set_text(text)?;
+
+                    if h == 0 {
+                        health_box.clear_text()?;
                     }
-                    Event::HealthArmorChanged((h, a)) if is_playing => {
-                        let text = if a == 0 {
-                            h.to_string()
-                        } else {
-                            format!("{h} / {a}")
-                        };
-
-                        health_box.set_text(text)?;
-
-                        if h == 0 {
-                            health_box.clear_text()?;
-                        }
-                    }
-                    Event::PlayingStopped => {
-                        is_playing = false;
-                        ammo_box.clear_text()?;
-                        health_box.clear_text()?
-                    }
-                    Event::PlayingStarted => {
-                        is_playing = true;
-                    }
-
-                    _ => {}
+                }
+                Event::PlayingStopped => {
+                    is_playing = false;
+                    ammo_box.clear_text()?;
+                    health_box.clear_text()?
+                }
+                Event::PlayingStarted => {
+                    is_playing = true;
                 }
 
-                tx.send(WindowEvent::Draw)
-                    .await
-                    .map_err(|e| Error::Generic(e.into()))?;
+                _ => {}
             }
 
-            Ok(())
-        });
+            tx.send(WindowEvent::Draw)
+                .await
+                .map_err(|e| Error::Generic(e.into()))?;
+        }
 
-        let window_task = tokio::task::spawn_blocking(move || {
-            let mut window = setup()?;
+        Ok(())
+    });
 
-            window.events(rx)?;
+    let window_task = tokio::task::spawn_blocking(move || {
+        let mut window = setup()?;
 
-            Ok(())
-        });
+        window.events(rx)?;
 
-        Ok((Some(dtx), vec![event_task, window_task]))
-    }
+        Ok(())
+    });
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        Ok((None, vec![]))
-    }
+    Ok((Some(dtx), vec![event_task, window_task]))
 }
 
 // Runs a countdown, triggering sound output if a corresponding file exists

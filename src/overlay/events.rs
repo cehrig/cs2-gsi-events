@@ -1,4 +1,4 @@
-use crate::windows::elements::{Draw2D, ElementIdentifier};
+use crate::overlay::elements::{Draw2D, ElementIdentifier};
 
 pub enum WindowEvent {
     Add2DElement((ElementIdentifier, Box<dyn Draw2D>)),

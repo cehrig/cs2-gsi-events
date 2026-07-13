@@ -17,6 +17,7 @@ pub fn to_wstring(s: &str) -> Vec<u16> {
         .collect()
 }
 
+#[cfg(target_os = "windows")]
 pub fn find_pid_by_name(find: &str) -> Result<Option<u32>, Error> {
     unsafe {
         let mut processes = [0u32; 1024];
@@ -68,6 +69,7 @@ pub fn find_pid_by_name(find: &str) -> Result<Option<u32>, Error> {
     Ok(None)
 }
 
+#[cfg(target_os = "windows")]
 pub fn allocate_memory(pid: u32, len: usize) -> Result<*mut c_void, Error> {
     unsafe {
         let handle = OpenProcess(PROCESS_ALL_ACCESS, false, pid)?;
@@ -81,6 +83,7 @@ pub fn allocate_memory(pid: u32, len: usize) -> Result<*mut c_void, Error> {
     }
 }
 
+#[cfg(target_os = "windows")]
 pub fn get_proc_address() -> Result<*mut c_void, Error> {
     unsafe {
         let kernel = CString::new("kernel32")?;
@@ -95,6 +98,7 @@ pub fn get_proc_address() -> Result<*mut c_void, Error> {
     }
 }
 
+#[cfg(target_os = "windows")]
 pub fn write_memory(
     pid: u32,
     loader: *const c_void,

@@ -1,7 +1,7 @@
 use crate::error::Error;
-use crate::windows::elements::{Draw2D, ElementIdentifier};
-use crate::windows::events::WindowEvent;
-use crate::windows::utility::to_wstring;
+use crate::overlay::elements::{Draw2D, ElementIdentifier};
+use crate::overlay::events::WindowEvent;
+use crate::overlay::windows::utility::to_wstring;
 use std::collections::HashMap;
 use tokio::sync::mpsc::Receiver;
 use windows::core::{Interface, PCWSTR};
