@@ -5,4 +5,9 @@ pub mod models;
 pub mod state;
 
 #[cfg(target_os = "windows")]
-pub mod windows;
+mod windows;
+
+pub mod platform {
+    #[cfg(target_os = "windows")]
+    pub use super::windows::*;
+}
